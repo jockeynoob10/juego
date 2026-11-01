@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Impostor · League of Legends</title>
+<style>
+:root{--bg:#0a1428;--panel:#0f1f3a;--line:#463714;--gold:#c8aa6e;--gold2:#f0e6d2;--blue:#0bc4e3;--red:#e84057;--muted:#8a9bb5}
+@media (prefers-color-scheme: light){:root{--bg:#0a1428}}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;background:radial-gradient(circle at 50% -10%,#16335f,var(--bg) 60%);color:var(--gold2);font-family:Georgia,'Times New Roman',serif;display:flex;justify-content:center;padding:20px 14px}
+#app{width:100%;max-width:520px}
+h1{font-size:1.9rem;margin:6px 0 2px;color:var(--gold);letter-spacing:.5px}
+h2{font-size:1.2rem;margin:0 0 10px;color:var(--gold)}
+p.sub{margin:0 0 18px;color:var(--muted)}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:14px}
+input,select{width:100%;padding:11px;margin-bottom:10px;background:#091428;border:1px solid var(--line);color:var(--gold2);font:inherit;border-radius:3px}
+input:focus,select:focus,button:focus-visible{outline:2px solid var(--blue);outline-offset:1px}
+button{font:inherit;cursor:pointer;padding:11px 16px;border:1px solid var(--gold);background:linear-gradient(#1e2d4d,#0f1b33);color:var(--gold);border-radius:3px;width:100%;margin-bottom:8px}
+button:hover{background:linear-gradient(#2a3d66,#16264a);color:#fff}
+button.danger{border-color:var(--red);color:var(--red)}
+button:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.code{font-size:2.4rem;letter-spacing:.35em;text-align:center;color:var(--gold);margin:4px 0 8px}
+ul{list-style:none;margin:0;padding:0}
+li.p{padding:8px 4px;border-bottom:1px solid #1c2c4a;display:flex;justify-content:space-between}
+li.p:last-child{border:0}
+.tag{color:var(--muted);font-size:.85rem}
+.card{text-align:center}
+.card img{width:150px;height:150px;border:3px solid var(--gold);border-radius:4px;display:block;margin:6px auto 10px}
+.card .name{font-size:1.7rem;color:var(--gold)}
+.imp{border-color:var(--red)}
+.imp .name{color:var(--red);font-size:2rem}
+.imp .big{font-size:4rem;line-height:1}
+.clue{padding:6px 0;border-bottom:1px solid #1c2c4a}
+.clue b{color:var(--blue);font-weight:normal;margin-right:6px}
+.win{color:#5be37d}.lose{color:var(--red)}
+@media (prefers-reduced-motion:no-preference){.card img{animation:flip .5s ease-out}@keyframes flip{from{transform:rotateY(90deg);opacity:0}to{transform:none;opacity:1}}}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const s = io();
+let st = null;
+const $ = q => document.querySelector(q);
+const esc = t => String(t).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const send = (e, d) => s.emit(e, d);
+
+s.on('state', x => { st = x; render(); });
+s.on('err', m => alert(m));
+
+function players() {
+  return `<ul>${st.players.map(p => `<li class="p"><span>${esc(p.name)}${p.id === st.me ? ' (tú)' : ''}</span><span class="tag">${p.voted && st.phase === 'vote' ? 'votó' : ''}</span></li>`).join('')}</ul>`;
+}
+
+function render() {
+  const app = $('#app');
+  const clueVal = $('#clue')?.value || '';
+  const hadFocus = document.activeElement?.id === 'clue';
+  let h = '<h1>Impostor · League of Legends</h1>';
+
+  if (!st) {
+    h += `<p class="sub">Un campeón secreto. Un impostor que no lo sabe.</p>
+      <div class="box">
+        <input id="name" maxlength="16" placeholder="Tu nombre" autocomplete="off">
+        <button onclick="send('create',$('#name').value)">Crear sala</button>
+        <div class="row"><input id="jc" maxlength="4" placeholder="Código" autocomplete="off"><button onclick="send('join',{code:$('#jc').value,name:$('#name').value})">Unirme</button></div>
+      </div>`;
+  } else if (st.phase === 'lobby') {
+    h += `<div class="box"><p class="tag" style="text-align:center;margin:0">Código de sala</p><div class="code">${st.code}</div>
+      <p class="tag" style="text-align:center;margin:0">Comparte este código con tus amigos</p></div>
+      <div class="box"><h2>Jugadores (${st.players.length})</h2>${players()}</div>`;
+    h += st.host
+      ? `<div class="box"><label class="tag">Impostores</label><select id="n"><option>1</option><option>2</option><option>3</option></select>
+         <button onclick="send('start',$('#n').value)" ${st.players.length < 3 ? 'disabled' : ''}>Empezar partida (mín. 3)</button></div>`
+      : `<p class="tag" style="text-align:center">Esperando al anfitrión…</p>`;
+  } else if (st.phase === 'play') {
+    h += st.isImpostor
+      ? `<div class="box card imp"><div class="big">?</div><div class="name">Eres el IMPOSTOR</div><p class="tag">Escucha las pistas y disimula.</p></div>`
+      : `<div class="box card"><img src="${st.champ.img}" alt=""><div class="name">${esc(st.champ.name)}</div><p class="tag">Da una pista sin decir el nombre. Hay ${st.impostorCount} impostor(es).</p></div>`;
+    h += `<div class="box"><h2>Pistas</h2>${st.clues.map(c => `<div class="clue"><b>${esc(c.name)}</b>${esc(c.text)}</div>`).join('') || '<p class="tag">Aún no hay pistas.</p>'}
+      <div class="row" style="margin-top:10px"><input id="clue" maxlength="40" placeholder="Tu pista (1 palabra)" autocomplete="off" onkeydown="if(event.key==='Enter')sendClue()"><button style="flex:0 0 90px" onclick="sendClue()">Enviar</button></div></div>`;
+    if (st.host) h += `<button class="danger" onclick="send('toVote')">Pasar a votación</button>`;
+  } else if (st.phase === 'vote') {
+    h += `<div class="box"><h2>¿Quién es el impostor?</h2>` +
+      st.players.filter(p => p.id !== st.me).map(p => `<button onclick="send('vote','${p.id}')">${esc(p.name)}</button>`).join('') +
+      `<p class="tag">Votaron: ${st.players.filter(p => p.voted).length}/${st.players.length}</p></div>`;
+  } else if (st.phase === 'result') {
+    const r = st.result;
+    h += `<div class="box card"><h2 class="${r.caught ? 'win' : 'lose'}">${r.caught ? '¡Atraparon al impostor!' : 'El impostor se salvó'}</h2>
+      <img src="${r.champ.img}" alt=""><div class="name">${esc(r.champ.name)}</div>
+      <p>Impostor(es): <b>${r.impostors.map(esc).join(', ')}</b></p></div>
+      <div class="box"><h2>Votos</h2>${r.tally.map(t => `<div class="clue">${esc(t.name)}: ${t.n}</div>`).join('')}</div>`;
+    if (st.host) h += `<button onclick="send('again')">Nueva ronda</button>`;
+  }
+  app.innerHTML = h;
+  if ($('#clue')) { $('#clue').value = clueVal; if (hadFocus) $('#clue').focus(); }
+}
+function sendClue() { const i = $('#clue'); if (i.value.trim()) { send('clue', i.value); i.value = ''; } }
+render();
+</script>
+</body>
+</html>
